@@ -1,0 +1,183 @@
+// server.js
+const express = require('express');
+const mongoose = require('mongoose');
+const cors = require('cors');
+require('dotenv').config();
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.use(cors());
+app.use(express.json());
+
+// MongoDB connection
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => console.log("✅ MongoDB Connected"))
+  .catch(err => console.error("❌ DB Error:", err));
+
+// Expense Schema
+const expenseSchema = new mongoose.Schema({
+  category: String,
+  description: String,
+  amount: Number,
+  date: String
+});
+const Expense = mongoose.model('Expense', expenseSchema);
+
+// ➕ Add Expense
+app.post('/expenses', async (req, res) => {
+  try {
+    const expense = await Expense.create(req.body);
+    res.status(201).json(expense);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// 📜 Get All Expenses
+app.get('/expenses', async (req, res) => {
+  const expenses = await Expense.find().sort({ date: -1 });
+  res.json(expenses);
+});
+
+// ❌ Delete Expense
+app.delete('/expenses/:id', async (req, res) => {
+  const deleted = await Expense.findByIdAndDelete(req.params.id);
+  deleted
+    ? res.json({ message: "Expense Deleted" })
+    : res.status(404).json({ message: "Not Found" });
+});
+
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>💰 Expense Tracker</title>
+<style>
+body {
+  font-family: 'Poppins', sans-serif;
+  background: linear-gradient(135deg, #1976d2, #42a5f5);
+  margin: 0;
+  padding: 40px;
+  color: #333;
+}
+.container {
+  background: #fff;
+  max-width: 600px;
+  margin: auto;
+  padding: 25px;
+  border-radius: 12px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+h1 {
+  text-align: center;
+  color: #1976d2;
+}
+form {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 25px;
+}
+input, button {
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  font-size: 16px;
+}
+button {
+  background: #1976d2;
+  color: #fff;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: 0.3s;
+}
+button:hover {
+  background: #0d47a1;
+}
+ul {
+  list-style: none;
+  padding: 0;
+}
+li {
+  background: #e3f2fd;
+  border-left: 5px solid #1976d2;
+  padding: 12px;
+  border-radius: 6px;
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.delete-btn {
+  background: #ef5350;
+  border: none;
+  color: #fff;
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: 0.3s;
+}
+.delete-btn:hover {
+  background: #c62828;
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>💰 Expense Tracker</h1>
+  <form id="expenseForm">
+    <input name="category" placeholder="Category (e.g. Food)" required>
+    <input name="description" placeholder="Description (optional)">
+    <input name="amount" type="number" placeholder="Amount" required>
+    <input name="date" type="date" required>
+    <button type="submit">Add Expense</button>
+  </form>
+  <ul id="expenseList"></ul>
+</div>
+
+<script>
+const API_URL = '/expenses';
+const list = document.getElementById('expenseList');
+const form = document.getElementById('expenseForm');
+
+// Add Expense
+form.onsubmit = async (e) => {
+  e.preventDefault();
+  const data = Object.fromEntries(new FormData(form));
+  await fetch(API_URL, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(data)
+  });
+  form.reset();
+  fetchExpenses();
+};
+
+// Get All Expenses
+async function fetchExpenses() {
+  const res = await fetch(API_URL);
+  const expenses = await res.json();
+  list.innerHTML = '';
+  expenses.forEach(e => {
+    const li = document.createElement('li');
+    li.innerHTML = `
+      <span><b>${e.category}</b> - ₹${e.amount} (${e.date})<br>
+      <small>${e.description || 'No description'}</small></span>
+      <button class="delete-btn" onclick="deleteExpense('${e._id}')">✕</button>
+    `;
+    list.appendChild(li);
+  });
+}
+
+// Delete Expense
+async function deleteExpense(id) {
+  await fetch(\`\${API_URL}/\${id}\`, { method: 'DELETE' });
+  fetchExpenses();
+}
+
+fetchExpenses();
+</script>
+</body>
+</html>
